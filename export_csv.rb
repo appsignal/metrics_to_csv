@@ -69,7 +69,7 @@ QUERY
 variables = {
   "appId" => app_id,
   "start" => start_date.beginning_of_day,
-  "end" => start_date.end_of_day,
+  "end" => end_date.end_of_day,
   "query" => query
 }.to_json
 
