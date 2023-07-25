@@ -2,9 +2,10 @@ require "debug"
 require "csv"
 require "fileutils"
 require "json"
-require 'rest-client'
-require 'active_support'
-require 'active_support/core_ext'
+require "rest-client"
+require "active_support"
+require "active_support/core_ext"
+require "./lib/helpers.rb"
 
 # Get all required information
 app_id = ARGV[0] or raise "Specify app id as the first argument"
@@ -74,27 +75,17 @@ variables = {
 }.to_json
 
 # Execute the query
-result = begin
-  RestClient.post(
+result = RestClient.post(
   "#{ENDPOINT}?token=#{token}",
   {:query => QUERY, :variables => variables}
 )
-rescue => e
-  raise e.response.body.inspect
-end
 response = JSON.parse(result)
 
 # Get to the metrics part
 metrics = response["data"]["app"]["metrics"]
 keys = metrics["timeseries"]["keys"]
-points = metrics["timeseries"]["points"]
-
-keys.each do |key|
-  puts key
-end
-
-points.each do |point|
-  puts point
+points = metrics["timeseries"]["points"].sort_by do |point|
+  point["timestamp"].to_i
 end
 
 # Generate CSV
@@ -105,9 +96,7 @@ CSV.open(filename, "wb") do |csv|
   # Add header row with the fields
   header = ["timestamp"]
   keys.each do |key|
-    header << key["tags"].map do |tag|
-      "#{tag["key"]}:#{tag["value"]}"
-    end.join("-")
+    header << tag_header(key)
   end
   csv << header
 
@@ -119,7 +108,7 @@ CSV.open(filename, "wb") do |csv|
     # and add to the row
     keys.each do |key|
       point["values"].select do |value|
-        value["key"] == "#{key["digest"]};#{key["fields"].first.downcase}"
+        value["key"] == metric_key(key)
       end.each do |value|
         row << value["value"]
       end
